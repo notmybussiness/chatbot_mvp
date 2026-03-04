@@ -2,7 +2,7 @@
 
 ## 🎯 목표
 
-분석 및 보고 기능을 구현합니다. `analytics/` 패키지만 수정합니다.
+관리자를 위한 분석 및 보고 기능을 구현합니다. 도메인 간 결합도를 낮추기 위해 Adapter 패턴을 사용하여 User 및 Chat 도메인의 데이터를 취합합니다.
 
 ## 📋 참조 문서
 
@@ -11,9 +11,8 @@
 
 ## ⚠️ 규칙
 
-- **`common/` 패키지 절대 수정 금지**
-- `analytics/` 패키지만 생성/수정
-- Admin 전용 기능 — 모든 엔드포인트에 admin 권한 체크
+- `analytics/` 패키지를 중심으로 작업하되, 타 도메인(User, Chat) 데이터 조회를 위해 Adapter 패턴을 활용합니다.
+- Admin 전용 기능이므로 모든 엔드포인트에 인증 및 권한(`ADMIN`) 체크를 확실히 적용합니다.
 
 ---
 
@@ -29,8 +28,8 @@ git checkout -b feature/analytics
 
 ## 핵심 비즈니스 로직
 
-1. **사용자 활동 기록**: 요청 시점으로부터 **하루(24시간) 동안**의 회원가입 수, 로그인 수, 대화 생성 수
-2. **CSV 보고서**: 요청 시점으로부터 하루 동안의 모든 사용자 대화 목록 + 생성한 사용자 정보
+1. **사용자 활동 기록**: 요청 시점으로부터 **하루(24시간) 동안**의 회원가입 수, 로그인 수, 대화 생성 수 조회
+2. **CSV 보고서**: 요청 시점으로부터 하루 동안의 모든 사용자 대화 목록 + 해당 대화를 생성한 사용자 정보 다운로드
 
 ---
 
@@ -44,25 +43,14 @@ data class ActivityResponse(
     val signUpCount: Long,
     val loginCount: Long,
     val chatCount: Long,
-    val periodStart: OffsetDateTime,  // 24시간 전
-    val periodEnd: OffsetDateTime     // 현재
+    val periodStart: OffsetDateTime,
+    val periodEnd: OffsetDateTime
 )
 ```
 
-### 2. 로그인 기록 문제 해결
+### 2. 로그인 기록 (LoginLog)
 
-> ⚠️ **이슈**: 요구사항에 "로그인 수"가 있지만, User 테이블에는 로그인 기록이 없음.
->
-> **해결 방법 (택 1)**:
->
-> 1. `LoginLog` 엔티티를 analytics/ 패키지에 생성 → user-auth 브랜치의 UserService에서 기록
->    → ❌ 다른 브랜치 수정 필요
-> 2. `LoginLog` 테이블만 analytics/에 만들고, merge 후 UserService에 기록 로직 추가
->    → ✅ 추천
-> 3. User의 `lastLoginAt` 필드 추가 → 직접 카운트 불가
->    → ❌ 부정확
->
-> **추천: 방법 2** — LoginLog 엔티티를 만들어두고, merge 후 통합 단계에서 UserService에 로그인 시 기록 로직 추가
+요구사항의 "로그인 수"를 집계하기 위해 Analytics 도메인 내부에 `LoginLog` 엔티티를 생성합니다. 나중에 `user-auth` 관련 로직과 병합(merge)할 때 로그인 성공 시 해당 기록을 남기도록 연동할 예정입니다.
 
 ```kotlin
 // analytics/entity/LoginLog.kt
@@ -79,58 +67,89 @@ interface LoginLogRepository : JpaRepository<LoginLog, UUID> {
 }
 ```
 
-### 3. AnalyticsService
+### 3. Analytics Adapter (도메인 종합)
+
+Analytics 도메인이 User나 Chat 모듈의 내부 구현에 강하게 결합되지 않도록 **Adapter 역할**을 하는 컴포넌트를 만듭니다. 스프링의 특성상 각 도메인의 Repository를 직접 주입받아 데이터를 가공하는 역할을 이 Adapter가 수행합니다. (필요 시 각 도메인의 Service나 별도 포트를 참조할 수도 있습니다.)
+
+```kotlin
+// analytics/adapter/AnalyticsDataAdapter.kt
+@Component
+class AnalyticsDataAdapter(
+    private val userRepository: UserRepository,       // user-auth 브랜치에서 생성될 예정
+    private val chatRepository: ChatRepository,       // chat 브랜치에서 생성될 예정
+    private val loginLogRepository: LoginLogRepository
+) {
+    fun getSignUpCountSince(since: OffsetDateTime): Long {
+        return userRepository.countByCreatedAtAfter(since)
+    }
+
+    fun getLoginCountSince(since: OffsetDateTime): Long {
+        return loginLogRepository.countByCreatedAtAfter(since)
+    }
+
+    fun getChatCountSince(since: OffsetDateTime): Long {
+        return chatRepository.countByCreatedAtAfter(since)
+    }
+
+    // CSV 보고서를 위한 데이터 취합
+    fun getChatReportDataSince(since: OffsetDateTime): List<ChatReportDto> {
+        // Chat과 연관된 Thread, 그리고 Thread의 Owner(User) 정보를 패치 조인 등으로 가져오는 로직.
+        // JPA DTO Projection이나 JPQL을 활용하여 조회합니다.
+        // 예시 시그니처입니다.
+        return chatRepository.findChatReportDataAfter(since)
+    }
+}
+```
+
+_(참고: `UserRepository`나 `ChatRepository`가 아직 현재 브랜치에 없다면, 타 도메인의 엔티티 및 리포지토리가 있다고 가정하고 코드를 작성하거나, 병합 후 의존성을 연결합니다.)_
+
+### 4. AnalyticsService
+
+어댑터를 통해 취합된 데이터를 바탕으로 비즈니스 로직(CSV 생성 등)을 처리합니다.
 
 ```kotlin
 // analytics/service/AnalyticsService.kt
 @Service
 class AnalyticsService(
-    private val loginLogRepository: LoginLogRepository
-    // ⚠️ UserRepository, ChatRepository는 다른 브랜치 소유
-    // merge 후에 주입받아 사용
-    // MVP에서는 네이티브 쿼리로 직접 카운트
+    private val analyticsDataAdapter: AnalyticsDataAdapter
 ) {
     fun getActivity(): ActivityResponse {
-        val since = OffsetDateTime.now().minusHours(24)
         val now = OffsetDateTime.now()
+        val since = now.minusHours(24)
 
-        // 네이티브 쿼리로 카운트 (다른 브랜치 엔티티에 의존하지 않기 위해)
-        val signUpCount = executeCountQuery("SELECT COUNT(*) FROM users WHERE created_at > ?", since)
-        val loginCount = loginLogRepository.countByCreatedAtAfter(since)
-        val chatCount = executeCountQuery("SELECT COUNT(*) FROM chats WHERE created_at > ?", since)
+        val signUpCount = analyticsDataAdapter.getSignUpCountSince(since)
+        val loginCount = analyticsDataAdapter.getLoginCountSince(since)
+        val chatCount = analyticsDataAdapter.getChatCountSince(since)
 
         return ActivityResponse(signUpCount, loginCount, chatCount, since, now)
     }
 
     fun generateReport(): ByteArray {
         val since = OffsetDateTime.now().minusHours(24)
+        val reportData = analyticsDataAdapter.getChatReportDataSince(since)
 
-        // 네이티브 쿼리로 데이터 조회
-        val results = executeReportQuery("""
-            SELECT c.id, c.question, c.answer, c.created_at, u.email, u.name
-            FROM chats c JOIN users u ON c.user_id = u.id
-            WHERE c.created_at > ?
-            ORDER BY c.created_at ASC
-        """, since)
-
-        // CSV 생성
-        return buildCsvReport(results)
+        return buildCsvReport(reportData)
     }
 
-    private fun buildCsvReport(results: List<Map<String, Any>>): ByteArray {
+    private fun buildCsvReport(results: List<ChatReportDto>): ByteArray {
         val sb = StringBuilder()
+        // CSV 헤더 (BOM 추가 권장: 한글 깨짐 방지)
         sb.appendLine("chat_id,question,answer,created_at,user_email,user_name")
         results.forEach { row ->
-            sb.appendLine("${row["id"]},\"${escape(row["question"])}\",\"${escape(row["answer"])}\",${row["created_at"]},${row["user_email"]},${row["user_name"]}")
+            // 필드 내 따옴표나 쉼표 처리 로직 유의
+            sb.appendLine("${row.chatId},\"${escape(row.question)}\",\"${escape(row.answer)}\",${row.createdAt},${row.userEmail},${row.userName}")
         }
         return sb.toString().toByteArray(Charsets.UTF_8)
+    }
+
+    // CSV 이스케이프 유틸 함수
+    private fun escape(value: String): String {
+        return value.replace("\"", "\"\"")
     }
 }
 ```
 
-> 💡 **EntityManager를 이용한 네이티브 쿼리** 패턴을 사용하여 다른 브랜치 엔티티 의존 없이 구현
-
-### 4. AnalyticsController
+### 5. AnalyticsController
 
 ```kotlin
 // analytics/controller/AnalyticsController.kt
@@ -149,7 +168,7 @@ class AnalyticsController(private val analyticsService: AnalyticsService) {
     fun generateReport(): ResponseEntity<ByteArray> {
         val csv = analyticsService.generateReport()
         return ResponseEntity.ok()
-            .header("Content-Disposition", "attachment; filename=report_${LocalDate.now()}.csv")
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"report_${LocalDate.now()}.csv\"")
             .contentType(MediaType.parseMediaType("text/csv"))
             .body(csv)
     }
@@ -160,41 +179,31 @@ class AnalyticsController(private val analyticsService: AnalyticsService) {
 
 ## 통합 테스트 시나리오
 
-```kotlin
-// test: AnalyticsIntegrationTest.kt
-@SpringBootTest
-@AutoConfigureMockMvc
-class AnalyticsIntegrationTest {
-    // 1. admin 활동 기록 요청 → 200 + 카운트 값
-    // 2. member 활동 기록 요청 → 403
-    // 3. admin CSV 보고서 다운로드 → 200 + CSV 컨텐츠
-    // 4. member CSV 보고서 요청 → 403
-    // 5. CSV에 올바른 헤더와 데이터 포함 확인
-}
-```
+1. **Admin 활동 기록 요청**: 어댑터를 Mocking 하거나 실제 DB에 데이터를 넣은 뒤 `GET /api/analytics/activity` 호출 -> 상태 코드 200 및 카운트 검증
+2. **Member 권한 요청**: 일반 유저 토큰으로 예외 발생(403) 확인
+3. **CSV 다운로드**: 200 OK와 올바른 CSV 포맷/헤더 검증
 
-> ⚠️ 통합 테스트 시 `users`, `chats` 테이블이 존재해야 함.
-> merge 전에는 네이티브 쿼리가 테이블 미존재로 실패할 수 있으므로,
-> 테스트용 `schema.sql`에 최소한의 테이블 스키마를 포함하거나 `@Sql` 어노테이션 사용
+> 💡 **Tip:** 아직 타 도메인 리포지토리가 미완성이므로, Adapter를 Mocking(`@MockBean` 등) 하여 Analytics 도메인만의 단위/통합 테스트를 우선 작성하는 방식을 권장합니다.
 
 ---
 
 ## Git 커밋 가이드
 
 ```bash
-git commit -m "feat(analytics): add LoginLog entity for tracking"
-git commit -m "feat(analytics): implement activity stats service"
-git commit -m "feat(analytics): add CSV report generation"
-git commit -m "feat(analytics): add analytics controller (admin-only)"
-git commit -m "test(analytics): add analytics integration tests"
+git commit -m "feat(analytics): add LoginLog entity and repository"
+git commit -m "feat(analytics): implement AnalyticsDataAdapter for cross-domain data"
+git commit -m "feat(analytics): implement analytics service and CSV generation"
+git commit -m "feat(analytics): add analytics controller with admin restrictions"
+git commit -m "test(analytics): add tests with mocked adapter"
 ```
 
 ---
 
 ## ✅ 완료 조건
 
-- [ ] 활동 기록 API (`GET /api/analytics/activity`) admin 전용
-- [ ] CSV 보고서 다운로드 (`GET /api/analytics/report`)
-- [ ] member 접근 시 403
-- [ ] 통합 테스트 통과 (또는 merge 후 통과)
-- [ ] `TASK_STATUS.md`의 Phase 2d를 ✅로 업데이트
+- [ ] `LoginLog` 엔티티 및 Repository 등 로그인 기록 기반 구조 구상
+- [ ] `AnalyticsDataAdapter` 구조 확립 및 적용
+- [ ] 활동 기록 API (`GET /api/analytics/activity`) 구현 (Admin 전용)
+- [ ] CSV 보고서 다운로드 (`GET /api/analytics/report`) 구현 (Admin 전용)
+- [ ] 접근 제한(Member 403) 테스트 작성
+- [ ] `TASK_STATUS.md`의 Phase 2d 진행 상태 업데이트
