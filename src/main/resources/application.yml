@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: chatbot
+
+  # H2 Database (default)
+  datasource:
+    url: jdbc:h2:mem:chatbotdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+    defer-datasource-initialization: true
+
+  sql:
+    init:
+      mode: never
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:my-super-secret-key-for-development-minimum-256-bits-long-enough!!}
+  expiration: 86400000 # 24 hours in milliseconds
+
+# AI Client Configuration
+ai:
+  provider: ${AI_PROVIDER:mock} # mock | openai
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_MODEL:gpt-3.5-turbo}
+    base-url: https://api.openai.com/v1
+
+server:
+  port: 8080
