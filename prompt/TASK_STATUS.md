@@ -1,17 +1,16 @@
 # 🔄 AI Chatbot MVP — 공통 작업 상태
 
 > **이 파일은 모든 스레드가 참조하는 공유 상태 파일입니다.**
-> 각 스레드는 자신의 작업 상태를 업데이트하고, 다른 스레드의 상태를 확인합니다.
 
 ## 전체 진행 상황
 
 | Phase                        | 상태                           | 담당        |
 | ---------------------------- | ------------------------------ | ----------- |
-| Phase 1: Common Foundation   | ⬜ 대기                        | 공통 스레드 |
-| Phase 2a: User Auth          | ⬜ 대기 (Phase 1 완료 후 시작) | 스레드 A    |
-| Phase 2b: Chat               | ⬜ 대기 (Phase 1 완료 후 시작) | 스레드 B    |
-| Phase 2c: Feedback           | ⬜ 대기 (Phase 1 완료 후 시작) | 스레드 C    |
-| Phase 2d: Analytics          | ⬜ 대기 (Phase 1 완료 후 시작) | 스레드 D    |
+| Phase 1: Common Foundation   | ✅ 완료                        | 공통 스레드 |
+| Phase 2a: User Auth          | ⬜ 대기 (시작 가능)            | 스레드 A    |
+| Phase 2b: Chat               | ⬜ 대기 (시작 가능)            | 스레드 B    |
+| Phase 2c: Feedback           | ⬜ 대기 (시작 가능)            | 스레드 C    |
+| Phase 2d: Analytics          | ⬜ 대기 (시작 가능)            | 스레드 D    |
 | Phase 3: Merge & Integration | ⬜ 대기 (Phase 2 전체 완료 후) | 통합 스레드 |
 
 ## 상태 아이콘
@@ -39,38 +38,44 @@ com.sionicai.chatbot
 2. 각 feature 브랜치는 **자신의 패키지만** 생성/수정
 3. Merge 순서: `user-auth` → `chat` → `feedback` → `analytics`
 
-### 공통 인터페이스 (Common에서 제공)
+### 공통 인터페이스 사용법
 
 ```kotlin
-// --- AiClient 인터페이스 ---
-interface AiClient {
-    fun chatCompletion(messages: List<ChatMessage>, model: String): String
+// JWT 인증된 요청에서 사용자 정보 추출
+val userId = SecurityUtils.getCurrentUserId()   // UUID
+val role = SecurityUtils.getCurrentUserRole()     // "member" | "admin"
+val isAdmin = SecurityUtils.isAdmin()             // Boolean
+
+// AI 클라이언트 주입 (Strategy 패턴)
+@Service
+class MyService(private val aiClient: AiClient) {
+    fun ask(question: String): String {
+        val messages = listOf(ChatMessage("user", question))
+        return aiClient.chatCompletion(messages, model = null)
+    }
 }
 
-// --- BaseEntity ---
-@MappedSuperclass
-abstract class BaseEntity {
-    @Id @GeneratedValue(strategy = GenerationType.UUID)
-    val id: UUID = UUID.randomUUID()
+// 공통 응답 포맷
+ApiResponse.success(data)    // { success: true, data: ... }
+ApiResponse.error("message") // { success: false, error: "..." }
 
-    @Column(updatable = false)
-    val createdAt: OffsetDateTime = OffsetDateTime.now()
-}
+// 페이지네이션
+PageResponse.of(content, page, size, totalElements)
 
-// --- ApiResponse ---
-data class ApiResponse<T>(
-    val success: Boolean,
-    val data: T? = null,
-    val error: String? = null
-)
-
-// --- JWT에서 추출되는 사용자 정보 ---
-// SecurityContext에서 userId, role 추출 가능
-// JwtAuthFilter가 Authentication 객체에 userId, role 세팅
+// 커스텀 예외 (GlobalExceptionHandler가 자동 처리)
+throw DuplicateResourceException("User", "email", "test@test.com") // 409
+throw ResourceNotFoundException("Chat", chatId)                     // 404
+throw UnauthorizedException("Invalid credentials")                  // 401
+throw ForbiddenException("Admin only")                              // 403
 ```
+
+### Spring Security 설정
+
+- `/api/auth/**` → 인증 불필요
+- 그 외 전부 → JWT 필수
+- `@PreAuthorize("hasRole('ADMIN')")` → admin 전용
 
 ### 테스트 규칙
 
-- **단위 테스트**: AiClient Strategy 패턴만
-- **통합 테스트**: 각 기능별 MockMvc + H2
-- **E2E**: Playwright (CI에서 Postgres)
+- **단위 테스트**: AiClient Strategy 패턴만 (완료)
+- **통합 테스트**: 각 기능별 `@SpringBootTest` + `MockMvc` + H2
