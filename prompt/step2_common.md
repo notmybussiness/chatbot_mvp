@@ -26,7 +26,7 @@
 
 ```bash
 # Spring Initializr 또는 수동으로 프로젝트 생성
-# 프로젝트 루트: /Users/gyu/Desktop/sionicai/
+# 프로젝트 루트: /Users/gyu/Desktop/chatbot/
 ```
 
 **build.gradle.kts 의존성:**

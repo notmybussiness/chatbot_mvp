@@ -24,7 +24,7 @@
 ### 패키지 구조
 
 ```
-com.sionicai.chatbot
+com.example.chatbot
 ├── common/     ← 공통 (main 브랜치, 수정 금지!)
 ├── user/       ← feature/user-auth만 수정
 ├── chat/       ← feature/chat만 수정

@@ -1,4 +1,4 @@
-# Sionic AI Chatbot API
+# AI Chatbot API
 
 ## 0) 현재 상태 한 줄 요약 (2026-03-04)
 
@@ -65,9 +65,9 @@ npx playwright test e2e/mvp-flow.spec.js --reporter=line
 
 | MVP 기능 | 동작 여부 | 테스트 근거 | 메모 |
 |---|---|---|---|
-| 회원가입/로그인/JWT 인증 | FAIL | `com.sionicai.chatbot.user.UserAuthIntegrationTest` (6/6 fail), `com.sionicai.chatbot.user.controller.UserAuthIntegrationTest` (5/5 fail), Playwright member flow 실패 | signup/login 경로에서 500 발생 |
-| 대화 생성/상태 조회/스레드 관리 | FAIL | `com.sionicai.chatbot.chat.controller.ChatIntegrationTest` (3/3 fail) | 테스트 setup의 signup 단계에서 500으로 차단 |
-| 피드백 생성/조회/상태 변경 | FAIL | `com.sionicai.chatbot.feedback.FeedbackIntegrationTest` (5/5 fail) | setUp 중 사용자 저장 단계 실패 |
+| 회원가입/로그인/JWT 인증 | FAIL | `com.example.chatbot.user.UserAuthIntegrationTest` (6/6 fail), `com.example.chatbot.user.controller.UserAuthIntegrationTest` (5/5 fail), Playwright member flow 실패 | signup/login 경로에서 500 발생 |
+| 대화 생성/상태 조회/스레드 관리 | FAIL | `com.example.chatbot.chat.controller.ChatIntegrationTest` (3/3 fail) | 테스트 setup의 signup 단계에서 500으로 차단 |
+| 피드백 생성/조회/상태 변경 | FAIL | `com.example.chatbot.feedback.FeedbackIntegrationTest` (5/5 fail) | setUp 중 사용자 저장 단계 실패 |
 | 관리자 활동/리포트 | PARTIAL | `AnalyticsServiceTest` (2/2 pass), `AnalyticsControllerTest` (2/3 pass), `AnalyticsIntegrationTest` (0/4 fail), Playwright admin flow 1건 pass | 서비스 단위는 통과, 통합은 실패 |
 | AI Provider 전략/응답 파싱 | PASS | `AiClientStrategyTest` (7/7 pass), `GeminiAiClientTest` (2/2 pass) | mock/gemini 단위 동작 확인 |
 | 애플리케이션 컨텍스트 로딩 | PASS | `ChatbotApplicationTests` (1/1 pass) | 기본 부팅 컨텍스트 정상 |
@@ -194,8 +194,8 @@ fun generateReport(): ResponseEntity<ByteArray> {
 
 ## 8) 구현 위치 (파일 경로)
 
-- 인증: `src/main/kotlin/com/sionicai/chatbot/user/controller/AuthController.kt`, `src/main/kotlin/com/sionicai/chatbot/user/service/UserService.kt`
-- 보안/JWT: `src/main/kotlin/com/sionicai/chatbot/common/config/SecurityConfig.kt`, `src/main/kotlin/com/sionicai/chatbot/common/security/JwtAuthFilter.kt`
-- 대화: `src/main/kotlin/com/sionicai/chatbot/chat/controller/ChatController.kt`, `src/main/kotlin/com/sionicai/chatbot/chat/service/ChatService.kt`
-- 피드백: `src/main/kotlin/com/sionicai/chatbot/feedback/controller/FeedbackController.kt`, `src/main/kotlin/com/sionicai/chatbot/feedback/service/FeedbackService.kt`
-- 분석/리포트: `src/main/kotlin/com/sionicai/chatbot/analytics/controller/AnalyticsController.kt`, `src/main/kotlin/com/sionicai/chatbot/analytics/service/AnalyticsService.kt`
+- 인증: `src/main/kotlin/com/example/chatbot/user/controller/AuthController.kt`, `src/main/kotlin/com/example/chatbot/user/service/UserService.kt`
+- 보안/JWT: `src/main/kotlin/com/example/chatbot/common/config/SecurityConfig.kt`, `src/main/kotlin/com/example/chatbot/common/security/JwtAuthFilter.kt`
+- 대화: `src/main/kotlin/com/example/chatbot/chat/controller/ChatController.kt`, `src/main/kotlin/com/example/chatbot/chat/service/ChatService.kt`
+- 피드백: `src/main/kotlin/com/example/chatbot/feedback/controller/FeedbackController.kt`, `src/main/kotlin/com/example/chatbot/feedback/service/FeedbackService.kt`
+- 분석/리포트: `src/main/kotlin/com/example/chatbot/analytics/controller/AnalyticsController.kt`, `src/main/kotlin/com/example/chatbot/analytics/service/AnalyticsService.kt`
