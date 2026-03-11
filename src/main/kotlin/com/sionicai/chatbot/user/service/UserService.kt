@@ -1,7 +1,8 @@
 package com.sionicai.chatbot.user.service
 
+import com.sionicai.chatbot.analytics.entity.LoginLog
+import com.sionicai.chatbot.analytics.repository.LoginLogRepository
 import com.sionicai.chatbot.common.exception.DuplicateResourceException
-import com.sionicai.chatbot.common.exception.ResourceNotFoundException
 import com.sionicai.chatbot.common.exception.UnauthorizedException
 import com.sionicai.chatbot.common.security.JwtUtil
 import com.sionicai.chatbot.user.dto.LoginRequest
@@ -18,7 +19,8 @@ import org.springframework.transaction.annotation.Transactional
 class UserService(
     private val userRepository: UserRepository,
     private val passwordEncoder: PasswordEncoder,
-    private val jwtUtil: JwtUtil
+    private val jwtUtil: JwtUtil,
+    private val loginLogRepository: LoginLogRepository
 ) {
     @Transactional
     fun signUp(request: SignUpRequest): User {
@@ -45,6 +47,8 @@ class UserService(
         if (!passwordEncoder.matches(request.password, user.password)) {
             throw UnauthorizedException("Invalid credentials")
         }
+
+        loginLogRepository.save(LoginLog(user.id!!))
 
         val token = jwtUtil.generateToken(user.id!!, user.email, user.role.name)
 

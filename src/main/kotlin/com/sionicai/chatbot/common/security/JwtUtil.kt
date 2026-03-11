@@ -25,7 +25,7 @@ class JwtUtil(
         return Jwts.builder()
             .subject(userId.toString())
             .claim("email", email)
-            .claim("role", role)
+            .claim("role", normalizeRole(role))
             .issuedAt(now)
             .expiration(expiry)
             .signWith(key)
@@ -50,7 +50,8 @@ class JwtUtil(
     }
 
     fun getRoleFromToken(token: String): String {
-        return parseClaims(token)["role"] as String
+        val role = parseClaims(token)["role"] as String
+        return normalizeRole(role)
     }
 
     private fun parseClaims(token: String): Claims {
@@ -59,5 +60,9 @@ class JwtUtil(
             .build()
             .parseSignedClaims(token)
             .payload
+    }
+
+    private fun normalizeRole(role: String): String {
+        return role.removePrefix("ROLE_").uppercase()
     }
 }

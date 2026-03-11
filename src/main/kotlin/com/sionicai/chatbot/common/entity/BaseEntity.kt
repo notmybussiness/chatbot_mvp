@@ -10,8 +10,8 @@ abstract class BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(columnDefinition = "uuid", updatable = false)
-    open val id: UUID = UUID.randomUUID()
+    open var id: UUID? = null
 
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE")
-    open val createdAt: OffsetDateTime = OffsetDateTime.now()
+    open var createdAt: OffsetDateTime = OffsetDateTime.now()
 }

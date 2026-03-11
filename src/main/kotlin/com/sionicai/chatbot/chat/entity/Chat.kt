@@ -15,7 +15,7 @@ class Chat(
     val question: String,
 
     @Column(columnDefinition = "TEXT", nullable = false)
-    val answer: String,
+    var answer: String,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "thread_id", nullable = false)

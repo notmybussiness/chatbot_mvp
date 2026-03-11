@@ -1,6 +1,10 @@
 package com.sionicai.chatbot.user.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.sionicai.chatbot.analytics.repository.LoginLogRepository
+import com.sionicai.chatbot.chat.repository.ChatRepository
+import com.sionicai.chatbot.chat.repository.ThreadRepository
+import com.sionicai.chatbot.feedback.repository.FeedbackRepository
 import com.sionicai.chatbot.user.dto.LoginRequest
 import com.sionicai.chatbot.user.dto.SignUpRequest
 import com.sionicai.chatbot.user.repository.UserRepository
@@ -29,8 +33,24 @@ class UserAuthIntegrationTest {
     @Autowired
     private lateinit var userRepository: UserRepository
 
+    @Autowired
+    private lateinit var threadRepository: ThreadRepository
+
+    @Autowired
+    private lateinit var chatRepository: ChatRepository
+
+    @Autowired
+    private lateinit var feedbackRepository: FeedbackRepository
+
+    @Autowired
+    private lateinit var loginLogRepository: LoginLogRepository
+
     @BeforeEach
     fun setUp() {
+        feedbackRepository.deleteAll()
+        loginLogRepository.deleteAll()
+        chatRepository.deleteAll()
+        threadRepository.deleteAll()
         userRepository.deleteAll()
     }
 
@@ -118,8 +138,7 @@ class UserAuthIntegrationTest {
     @Test
     fun `인가되지 않은 사용자의 보호 API 접근 - 401`() {
          mockMvc.perform(
-             // 로그인하지 않았으므로 JWT가 없음. health check등 허용되지 않은 아무 url
-            get("/api/auth/profile") // 존재하지 않아도 시큐리티 필터에서 401이 먼저 발생해야함
+            get("/api/chats/threads")
         )
             .andExpect(status().isUnauthorized)
     }

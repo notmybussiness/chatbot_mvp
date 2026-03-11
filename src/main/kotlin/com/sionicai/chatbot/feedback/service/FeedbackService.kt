@@ -1,7 +1,9 @@
 package com.sionicai.chatbot.feedback.service
 
+import com.sionicai.chatbot.chat.repository.ChatRepository
 import com.sionicai.chatbot.common.dto.PageResponse
 import com.sionicai.chatbot.common.exception.DuplicateResourceException
+import com.sionicai.chatbot.common.exception.ForbiddenException
 import com.sionicai.chatbot.common.exception.ResourceNotFoundException
 import com.sionicai.chatbot.feedback.dto.CreateFeedbackRequest
 import com.sionicai.chatbot.feedback.dto.FeedbackResponse
@@ -10,13 +12,15 @@ import com.sionicai.chatbot.feedback.entity.Feedback
 import com.sionicai.chatbot.feedback.repository.FeedbackRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 @Service
 class FeedbackService(
-    private val feedbackRepository: FeedbackRepository
+    private val feedbackRepository: FeedbackRepository,
+    private val chatRepository: ChatRepository
 ) {
     @Transactional
     fun createFeedback(userId: UUID, role: String, request: CreateFeedbackRequest): FeedbackResponse {
@@ -24,9 +28,13 @@ class FeedbackService(
         if (feedbackRepository.existsByUserIdAndChatId(userId, request.chatId)) {
             throw DuplicateResourceException("Feedback", "userId and chatId", "$userId, ${request.chatId}")
         }
-        
-        // MVP: Skipping explicit chat ownership check here.
-        // It will be handled in Step 4 after Chat entity is merged.
+
+        val chat = chatRepository.findByIdOrNull(request.chatId)
+            ?: throw ResourceNotFoundException("Chat", request.chatId)
+
+        if (role != "ROLE_ADMIN" && chat.thread.user.id != userId) {
+            throw ForbiddenException("Users can only create feedback for their own chats")
+        }
 
         val feedback = feedbackRepository.save(
             Feedback(
@@ -84,7 +92,7 @@ class FeedbackService(
 
     private fun toResponse(feedback: Feedback): FeedbackResponse {
         return FeedbackResponse(
-            id = feedback.id,
+            id = feedback.id!!,
             userId = feedback.userId,
             chatId = feedback.chatId,
             isPositive = feedback.isPositive,

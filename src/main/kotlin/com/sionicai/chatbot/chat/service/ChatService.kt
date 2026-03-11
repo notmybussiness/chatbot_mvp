@@ -3,12 +3,17 @@ package com.sionicai.chatbot.chat.service
 import com.sionicai.chatbot.chat.dto.ChatCreateRequest
 import com.sionicai.chatbot.chat.dto.ChatResponse
 import com.sionicai.chatbot.chat.dto.ThreadResponse
+import com.sionicai.chatbot.chat.dto.ThreadChatResponse
 import com.sionicai.chatbot.chat.entity.Chat
 import com.sionicai.chatbot.chat.entity.Thread
 import com.sionicai.chatbot.chat.port.ChatResponsePort
 import com.sionicai.chatbot.chat.repository.ChatRepository
 import com.sionicai.chatbot.chat.repository.ThreadRepository
 import com.sionicai.chatbot.common.client.AiClient
+import com.sionicai.chatbot.common.client.ChatMessage
+import com.sionicai.chatbot.common.exception.ForbiddenException
+import com.sionicai.chatbot.common.exception.ResourceNotFoundException
+import com.sionicai.chatbot.user.entity.User
 import com.sionicai.chatbot.user.entity.UserRole
 import com.sionicai.chatbot.user.repository.UserRepository
 import org.springframework.data.domain.Page
@@ -18,10 +23,8 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
 import java.util.UUID
-import org.springframework.http.HttpStatus
-import com.sionicai.chatbot.common.exception.ResourceNotFoundException
-import com.sionicai.chatbot.common.exception.ForbiddenException
-import com.sionicai.chatbot.common.exception.BusinessException
+import kotlin.concurrent.thread
+
 @Service
 class ChatService(
     private val chatRepository: ChatRepository,
@@ -35,72 +38,67 @@ class ChatService(
         val user = userRepository.findByIdOrNull(userId)
             ?: throw ResourceNotFoundException("User", userId)
 
-        val lastChat = chatRepository.findFirstByThreadUserIdOrderByCreatedAtDesc(userId)
-        val now = OffsetDateTime.now()
-
-        val thread = if (lastChat == null || lastChat.createdAt.plusMinutes(30).isBefore(now)) {
-            threadRepository.save(Thread(user = user))
-        } else {
-            lastChat.thread
-        }
-
-        // 초기 Chat 엔티티 생성 (빈 답변)
-        val chat = chatRepository.save(Chat(
-            question = request.question,
-            answer = "Thinking...",
-            thread = thread
-        ))
-
-        chatResponsePort.sendPartialResponse(chat.id!!, "Thinking...")
-
-        // 해당 스레드의 이전 컨텍스트 가져오기
+        val thread = resolveThreadForUser(userId, user)
         val contextChats = chatRepository.findByThreadIdOrderByCreatedAtAsc(thread.id!!)
-        val messages = contextChats.flatMap {
-            listOf(
-                com.sionicai.chatbot.common.client.ChatMessage("user", it.question),
-                com.sionicai.chatbot.common.client.ChatMessage("assistant", it.answer)
+        val messages = buildMessages(contextChats, request.question)
+
+        return if (request.isStreaming) {
+            val chat = chatRepository.save(
+                Chat(
+                    question = request.question,
+                    answer = "",
+                    thread = thread
+                )
             )
-        } + com.sionicai.chatbot.common.client.ChatMessage("user", request.question)
 
-        // 비동기 처리는 실제로 Spring Async 방식이나 코루틴을 적용할 수 있지만, 요구사항이 kotlin 1.9 + Spring boot 3.x이므로 
-        // Thread를 활용하거나 CompletableFuture를 사용할 수 있다.
-        // 현재는 동기로 바로 처리한 뒤 결과 갱신을 보여줄 수 있도록 구성.
-        // 프롬프트 명세상 '폴링 기반 응답 스트리밍(진행 상태) 조회 구현'
-        
-        // --- 동기적 호출 모방 또는 실제 AI 연동 ---
-        // (AiClient.chatCompletion 구현 방식에 따름. 동기 함수면 여기서 blocking됨)
-        Thread {
-            try {
-                // AiClient 호출 연동
-                val aiResponse = aiClient.chatCompletion(messages, request.model)
-                
-                // 완료 응답 처리
-                chatResponsePort.sendCompleteResponse(chat.id!!, aiResponse)
-                
-                // 트랜잭션 분리로 엔티티 업데이트 (이건 추후 개선)
-            } catch (e: Exception) {
-                chatResponsePort.sendCompleteResponse(chat.id!!, "Error: ${e.message}")
-            }
-        }.start()
+            chatResponsePort.sendPartialResponse(chat.id!!, "Thinking...")
+            startStreamingCompletion(chat.id!!, messages, request.model)
 
-        return ChatResponse(
-            chatId = chat.id!!,
-            threadId = thread.id!!,
-            answer = "Thinking...",
-            isCompleted = false,
-            createdAt = chat.createdAt
-        )
+            ChatResponse(
+                chatId = chat.id!!,
+                threadId = thread.id!!,
+                answer = "Thinking...",
+                isCompleted = false,
+                createdAt = chat.createdAt
+            )
+        } else {
+            val answer = aiClient.chatCompletion(messages, request.model)
+            val chat = chatRepository.save(
+                Chat(
+                    question = request.question,
+                    answer = answer,
+                    thread = thread
+                )
+            )
+
+            ChatResponse(
+                chatId = chat.id!!,
+                threadId = thread.id!!,
+                answer = answer,
+                isCompleted = true,
+                createdAt = chat.createdAt
+            )
+        }
     }
 
-    @Transactional(readOnly = true)
-    fun getChatStatus(chatId: UUID): ChatResponse {
+    @Transactional
+    fun getChatStatus(userId: UUID, role: UserRole, chatId: UUID): ChatResponse {
         val chat = chatRepository.findByIdOrNull(chatId)
             ?: throw ResourceNotFoundException("Chat", chatId)
-        
-        val isCompleted = chatResponsePort.isCompleted(chatId)
-        val answer = chatResponsePort.getIntermediateResponse(chatId) ?: chat.answer
-        
-        // 최종 완료 상태면 DB에 확정 반영하는 로직이 필요할 수 있지만 (현재 ReadOnly)
+
+        validateChatAccess(userId, role, chat)
+
+        val inMemoryAnswer = chatResponsePort.getIntermediateResponse(chatId)
+        val inMemoryCompleted = chatResponsePort.isCompleted(chatId)
+
+        if (inMemoryCompleted && inMemoryAnswer != null && chat.answer != inMemoryAnswer) {
+            chat.answer = inMemoryAnswer
+            chatRepository.save(chat)
+        }
+
+        val answer = inMemoryAnswer ?: if (chat.answer.isBlank()) "Thinking..." else chat.answer
+        val isCompleted = inMemoryCompleted || chat.answer.isNotBlank()
+
         return ChatResponse(
             chatId = chat.id!!,
             threadId = chat.thread.id!!,
@@ -112,12 +110,36 @@ class ChatService(
 
     @Transactional(readOnly = true)
     fun getThreads(userId: UUID, role: UserRole, pageable: Pageable): Page<ThreadResponse> {
-        val page = if (role == UserRole.ADMIN) {
+        val threads = if (role == UserRole.ADMIN) {
             threadRepository.findAll(pageable)
         } else {
             threadRepository.findAllByUserId(userId, pageable)
         }
-        return page.map { ThreadResponse(it.id!!, it.createdAt) }
+
+        val threadIds = threads.content.mapNotNull { it.id }
+        val chatsByThread = if (threadIds.isEmpty()) {
+            emptyMap()
+        } else {
+            chatRepository.findAllByThreadIdInOrderByCreatedAtAsc(threadIds)
+                .groupBy { it.thread.id!! }
+        }
+
+        return threads.map { thread ->
+            val chats = chatsByThread[thread.id!!].orEmpty().map {
+                ThreadChatResponse(
+                    chatId = it.id!!,
+                    question = it.question,
+                    answer = it.answer,
+                    createdAt = it.createdAt
+                )
+            }
+            ThreadResponse(
+                threadId = thread.id!!,
+                userId = thread.user.id!!,
+                createdAt = thread.createdAt,
+                chats = chats
+            )
+        }
     }
 
     @Transactional
@@ -129,6 +151,48 @@ class ChatService(
             throw ForbiddenException("Access denied")
         }
 
+        chatRepository.deleteAllByThreadId(threadId)
         threadRepository.delete(thread)
+    }
+
+    private fun resolveThreadForUser(userId: UUID, user: User): Thread {
+        val lastChat = chatRepository.findFirstByThreadUserIdOrderByCreatedAtDesc(userId)
+        val now = OffsetDateTime.now()
+
+        return if (lastChat == null || lastChat.createdAt.plusMinutes(30).isBefore(now)) {
+            threadRepository.save(Thread(user = user))
+        } else {
+            lastChat.thread
+        }
+    }
+
+    private fun buildMessages(contextChats: List<Chat>, question: String): List<ChatMessage> {
+        return contextChats.flatMap {
+            listOf(
+                ChatMessage("user", it.question),
+                ChatMessage("assistant", it.answer)
+            )
+        } + ChatMessage("user", question)
+    }
+
+    private fun startStreamingCompletion(chatId: UUID, messages: List<ChatMessage>, model: String?) {
+        thread(start = true, name = "chat-stream-$chatId") {
+            val answer = try {
+                aiClient.chatCompletion(messages, model)
+            } catch (e: Exception) {
+                "Error: ${e.message ?: "Unknown error"}"
+            }
+
+            chatResponsePort.sendCompleteResponse(chatId, answer)
+            val chat = chatRepository.findByIdOrNull(chatId) ?: return@thread
+            chat.answer = answer
+            chatRepository.save(chat)
+        }
+    }
+
+    private fun validateChatAccess(userId: UUID, role: UserRole, chat: Chat) {
+        if (role != UserRole.ADMIN && chat.thread.user.id != userId) {
+            throw ForbiddenException("Access denied")
+        }
     }
 }

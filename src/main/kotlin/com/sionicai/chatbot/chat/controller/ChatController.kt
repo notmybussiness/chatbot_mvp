@@ -41,9 +41,11 @@ class ChatController(
     @GetMapping("/{chatId}/status")
     fun getChatStatus(
         @AuthenticationPrincipal userId: UUID,
+        authentication: Authentication,
         @PathVariable chatId: UUID
     ): ResponseEntity<ApiResponse<ChatResponse>> {
-        val response = chatService.getChatStatus(chatId)
+        val role = extractUserRole(authentication)
+        val response = chatService.getChatStatus(userId, role, chatId)
         return ResponseEntity.ok(ApiResponse.success(response))
     }
 
