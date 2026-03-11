@@ -39,6 +39,8 @@ npm run e2e:install
 npm run e2e
 ```
 
+Playwright는 충돌을 피하기 위해 내부적으로 `http://127.0.0.1:18080` 포트에서 앱을 띄워 검증합니다.
+
 브라우저를 띄운 상태(헤디드)로 확인하려면:
 ```bash
 npm run e2e:headed

@@ -8,14 +8,14 @@ module.exports = defineConfig({
   },
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://127.0.0.1:8080",
+    baseURL: "http://127.0.0.1:18080",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure"
   },
   webServer: {
-    command: './gradlew bootRun --args="--server.port=8080"',
-    url: "http://127.0.0.1:8080",
+    command: './gradlew bootRun --args="--server.port=18080"',
+    url: "http://127.0.0.1:18080",
     reuseExistingServer: true,
     timeout: 180_000
   }
