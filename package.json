@@ -1,0 +1,14 @@
+{
+  "name": "sionicai-chatbot-e2e",
+  "private": true,
+  "scripts": {
+    "e2e:install": "playwright install chromium",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:ui": "playwright test --ui",
+    "anitgravity:e2e": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2"
+  }
+}

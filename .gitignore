@@ -46,3 +46,9 @@ out/
 ### Logs ###
 *.log
 logs/
+
+### Node / Playwright ###
+node_modules/
+playwright-report/
+test-results/
+output/playwright/

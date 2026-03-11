@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sionic AI Chatbot MVP Demo</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --line: #dce3ee;
+      --text: #1b2430;
+      --accent: #1166ee;
+      --ok: #137333;
+      --error: #c5221f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
+      background: linear-gradient(180deg, #f5f7fb 0%, #edf3ff 100%);
+      color: var(--text);
+    }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 20px rgba(17, 102, 238, 0.08);
+    }
+    h1 {
+      grid-column: 1 / -1;
+      margin: 0 0 8px;
+      font-size: 24px;
+      letter-spacing: -0.02em;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      letter-spacing: -0.01em;
+    }
+    label {
+      display: block;
+      margin: 8px 0 4px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    input, textarea, button {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    button {
+      margin-top: 10px;
+      border: 0;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .inline input { width: auto; }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 99px;
+      background: #e8f0ff;
+      color: #2555cc;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .status-ok { color: var(--ok); }
+    .status-error { color: var(--error); }
+    pre {
+      background: #0f1620;
+      color: #b8d0ff;
+      border-radius: 8px;
+      padding: 12px;
+      overflow: auto;
+      font-size: 12px;
+      max-height: 320px;
+    }
+    ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Sionic AI Chatbot MVP <span class="badge">Browser Demo</span></h1>
+
+  <section class="card">
+    <h2>1) 회원가입</h2>
+    <label for="signup-email">이메일</label>
+    <input id="signup-email" type="email" value="demo-user@example.com" />
+    <label for="signup-password">비밀번호</label>
+    <input id="signup-password" type="password" value="password1234" />
+    <label for="signup-name">이름</label>
+    <input id="signup-name" type="text" value="Demo User" />
+    <button id="signup-btn">회원가입</button>
+  </section>
+
+  <section class="card">
+    <h2>2) 로그인</h2>
+    <label for="login-email">이메일</label>
+    <input id="login-email" type="email" value="demo-user@example.com" />
+    <label for="login-password">비밀번호</label>
+    <input id="login-password" type="password" value="password1234" />
+    <button id="login-btn">로그인</button>
+    <p id="auth-status">로그인 상태: <strong>로그아웃</strong></p>
+  </section>
+
+  <section class="card">
+    <h2>3) 채팅 생성</h2>
+    <label for="chat-question">질문</label>
+    <textarea id="chat-question">오늘 시연용으로 간단히 자기소개 해줘.</textarea>
+    <label for="chat-model">모델(옵션)</label>
+    <input id="chat-model" type="text" placeholder="gpt-4o-mini" />
+    <div class="inline">
+      <input id="chat-streaming" type="checkbox" />
+      <label for="chat-streaming" style="margin:0;">스트리밍 모드(폴링)</label>
+    </div>
+    <button id="chat-create-btn">대화 생성</button>
+    <p id="chat-status">최근 chatId: 없음</p>
+    <label for="chat-answer">응답</label>
+    <textarea id="chat-answer" readonly></textarea>
+  </section>
+
+  <section class="card">
+    <h2>4) 스레드 조회</h2>
+    <button id="threads-btn">스레드 불러오기</button>
+    <ul id="threads-list"></ul>
+  </section>
+
+  <section class="card">
+    <h2>5) 피드백 생성</h2>
+    <label for="feedback-chat-id">chatId</label>
+    <input id="feedback-chat-id" type="text" />
+    <div class="inline">
+      <input id="feedback-positive" type="checkbox" checked />
+      <label for="feedback-positive" style="margin:0;">긍정(true)</label>
+    </div>
+    <button id="feedback-btn">피드백 저장</button>
+  </section>
+
+  <section class="card" style="grid-column: 1 / -1;">
+    <h2>로그</h2>
+    <pre id="log-output"></pre>
+  </section>
+</main>
+
+<script>
+  const logOutput = document.getElementById("log-output");
+  const authStatus = document.getElementById("auth-status");
+  const chatStatus = document.getElementById("chat-status");
+  const chatAnswer = document.getElementById("chat-answer");
+  const threadsList = document.getElementById("threads-list");
+
+  let jwtToken = localStorage.getItem("jwtToken") || "";
+  let lastChatId = localStorage.getItem("lastChatId") || "";
+
+  function writeLog(title, payload, isError = false) {
+    const line = `[${new Date().toLocaleTimeString()}] ${title}\n${JSON.stringify(payload, null, 2)}\n\n`;
+    logOutput.textContent = line + logOutput.textContent;
+    logOutput.className = isError ? "status-error" : "";
+  }
+
+  function updateAuthStatus() {
+    authStatus.innerHTML = `로그인 상태: <strong class="${jwtToken ? "status-ok" : "status-error"}">${jwtToken ? "로그인됨" : "로그아웃"}</strong>`;
+  }
+
+  function updateChatStatus() {
+    chatStatus.textContent = `최근 chatId: ${lastChatId || "없음"}`;
+    document.getElementById("feedback-chat-id").value = lastChatId;
+  }
+
+  async function api(path, options = {}) {
+    const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+    if (jwtToken) headers["Authorization"] = `Bearer ${jwtToken}`;
+
+    const response = await fetch(path, { ...options, headers });
+    const contentType = response.headers.get("content-type") || "";
+    const body = contentType.includes("application/json") ? await response.json() : await response.text();
+
+    if (!response.ok) {
+      throw { status: response.status, body };
+    }
+    return body;
+  }
+
+  async function pollChatStatus(chatId, maxRetry = 20) {
+    for (let i = 0; i < maxRetry; i++) {
+      const result = await api(`/api/chats/${chatId}/status`);
+      const data = result.data;
+      chatAnswer.value = data.answer || "";
+      if (data.isCompleted) return data;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+    throw new Error("채팅 완료 상태를 제한 시간 내에 받지 못했습니다.");
+  }
+
+  document.getElementById("signup-btn").addEventListener("click", async () => {
+    const email = document.getElementById("signup-email").value.trim();
+    const password = document.getElementById("signup-password").value.trim();
+    const name = document.getElementById("signup-name").value.trim();
+    try {
+      const result = await api("/api/auth/signup", {
+        method: "POST",
+        body: JSON.stringify({ email, password, name })
+      });
+      writeLog("회원가입 성공", result);
+      document.getElementById("login-email").value = email;
+      document.getElementById("login-password").value = password;
+    } catch (error) {
+      writeLog("회원가입 실패", error, true);
+    }
+  });
+
+  document.getElementById("login-btn").addEventListener("click", async () => {
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value.trim();
+    try {
+      const result = await api("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password })
+      });
+      jwtToken = result.data.token;
+      localStorage.setItem("jwtToken", jwtToken);
+      updateAuthStatus();
+      writeLog("로그인 성공", { user: result.data.email, role: result.data.role });
+    } catch (error) {
+      writeLog("로그인 실패", error, true);
+    }
+  });
+
+  document.getElementById("chat-create-btn").addEventListener("click", async () => {
+    const question = document.getElementById("chat-question").value.trim();
+    const model = document.getElementById("chat-model").value.trim() || null;
+    const isStreaming = document.getElementById("chat-streaming").checked;
+    try {
+      const result = await api("/api/chats", {
+        method: "POST",
+        body: JSON.stringify({ question, model, isStreaming })
+      });
+      const data = result.data;
+      lastChatId = data.chatId;
+      localStorage.setItem("lastChatId", lastChatId);
+      updateChatStatus();
+
+      if (isStreaming) {
+        chatAnswer.value = data.answer || "";
+        const completed = await pollChatStatus(lastChatId);
+        chatAnswer.value = completed.answer || "";
+        writeLog("스트리밍 대화 완료", completed);
+      } else {
+        chatAnswer.value = data.answer || "";
+        writeLog("대화 생성 성공", data);
+      }
+    } catch (error) {
+      writeLog("대화 생성 실패", error, true);
+    }
+  });
+
+  document.getElementById("threads-btn").addEventListener("click", async () => {
+    try {
+      const result = await api("/api/chats/threads");
+      const threads = result.data.content || [];
+      threadsList.innerHTML = "";
+      threads.forEach((thread) => {
+        const li = document.createElement("li");
+        li.textContent = `thread=${thread.threadId}, chats=${thread.chats.length}`;
+        threadsList.appendChild(li);
+      });
+      writeLog("스레드 조회 성공", threads);
+    } catch (error) {
+      writeLog("스레드 조회 실패", error, true);
+    }
+  });
+
+  document.getElementById("feedback-btn").addEventListener("click", async () => {
+    const chatId = document.getElementById("feedback-chat-id").value.trim();
+    const isPositive = document.getElementById("feedback-positive").checked;
+    try {
+      const result = await api("/api/feedbacks", {
+        method: "POST",
+        body: JSON.stringify({ chatId, isPositive })
+      });
+      writeLog("피드백 저장 성공", result.data);
+    } catch (error) {
+      writeLog("피드백 저장 실패", error, true);
+    }
+  });
+
+  updateAuthStatus();
+  updateChatStatus();
+</script>
+</body>
+</html>
