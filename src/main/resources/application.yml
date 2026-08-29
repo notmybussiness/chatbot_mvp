@@ -46,5 +46,45 @@ ai:
     model: ${OPENAI_MODEL:gpt-3.5-turbo}
     base-url: https://api.openai.com/v1
 
+# Flight Price Daily Report Configuration
+flight:
+  # mock  : 외부 호출 없이 시연/테스트 (기본값)
+  # naver : 네이버 항공권 내부 API 호출 (비공식, 클라우드 IP 차단 가능)
+  provider: ${FLIGHT_PROVIDER:mock}
+
+  naver:
+    base-url: ${NAVER_FLIGHT_BASE_URL:https://flight-api.naver.com}
+    search-path: ${NAVER_FLIGHT_SEARCH_PATH:/flight/international/searchFlights}
+    referer: https://flight.naver.com/
+    user-agent: ${NAVER_FLIGHT_USER_AGENT:Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36}
+    timeout-seconds: ${NAVER_FLIGHT_TIMEOUT:30}
+    # 요청 본문은 코드가 아니라 템플릿 파일에 있습니다. DevTools 로 캡처한 실제 payload 로
+    # 교체하면 재컴파일 없이 반영됩니다. file:/경로 로 외부 파일을 지정할 수도 있습니다.
+    request-template-oneway: ${NAVER_FLIGHT_TEMPLATE_OW:classpath:flight/naver-search-request-oneway.json}
+    request-template-roundtrip: ${NAVER_FLIGHT_TEMPLATE_RT:classpath:flight/naver-search-request-roundtrip.json}
+
+  # 응답에서 가격/항공사를 찾을 때 쓰는 후보 필드명.
+  # 스키마가 바뀌면 코드 수정 없이 여기에 키를 추가하면 됩니다.
+  extractor:
+    price-keys: ${FLIGHT_PRICE_KEYS:totalFare,totalPrice,adultFare,lowestFare,fare,price,amount}
+    airline-keys: ${FLIGHT_AIRLINE_KEYS:airlineName,airline,carrierName,marketingAirline,airlineCode,carrier}
+    stop-keys: ${FLIGHT_STOP_KEYS:stopCount,stops,viaCount,transitCount,stopOverCount}
+    currency-keys: ${FLIGHT_CURRENCY_KEYS:currency,currencyCode}
+    link-keys: ${FLIGHT_LINK_KEYS:deepLink,bookingUrl,link,url}
+    # 이 금액 미만은 유류할증료·세금 등으로 보고 무시합니다.
+    min-price: ${FLIGHT_MIN_PRICE:10000}
+
+  collection:
+    # 노선 사이 요청 간격(ms). 외부 소스에 연속 요청을 던지지 않기 위한 값입니다.
+    request-delay-ms: ${FLIGHT_REQUEST_DELAY_MS:3000}
+
+  report:
+    # 배치 스케줄은 명시적으로 켤 때만 동작합니다 (테스트/로컬에서 외부 조회 방지)
+    enabled: ${FLIGHT_REPORT_ENABLED:false}
+    cron: ${FLIGHT_REPORT_CRON:0 0 8 * * *}
+    zone: ${FLIGHT_REPORT_ZONE:Asia/Seoul}
+    # 최저가 비교에 사용할 과거 데이터 기간(일)
+    history-days: ${FLIGHT_HISTORY_DAYS:30}
+
 server:
   port: 8080

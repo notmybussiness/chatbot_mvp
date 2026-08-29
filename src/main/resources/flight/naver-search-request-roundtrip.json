@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "네이버 항공권 왕복 검색 요청 본문 템플릿입니다.",
+    "편도 템플릿(naver-search-request-oneway.json)의 설명을 함께 참고하세요.",
+    "왕복 전용 플레이스홀더:",
+    "  {{returnDate}}     귀국일 yyyyMMdd",
+    "  {{returnDateDash}} 귀국일 yyyy-MM-dd"
+  ],
+  "fly": [
+    {
+      "departureAirport": "{{origin}}",
+      "arrivalAirport": "{{destination}}",
+      "departureDate": "{{departureDate}}"
+    },
+    {
+      "departureAirport": "{{destination}}",
+      "arrivalAirport": "{{origin}}",
+      "departureDate": "{{returnDate}}"
+    }
+  ],
+  "tripType": "{{tripType}}",
+  "adult": {{adults}},
+  "child": 0,
+  "infant": 0,
+  "fareType": "{{cabin}}",
+  "isDirect": false
+}

@@ -1,6 +1,7 @@
 package com.sionicai.chatbot.common.exception
 
 import com.sionicai.chatbot.common.dto.ApiResponse
+import com.sionicai.chatbot.flight.client.FlightSearchException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -37,6 +38,15 @@ class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.FORBIDDEN)
             .body(ApiResponse.error("Access denied"))
+    }
+
+    @ExceptionHandler(FlightSearchException::class)
+    fun handleFlightSearch(ex: FlightSearchException): ResponseEntity<ApiResponse<Nothing>> {
+        // 외부 항공권 소스의 장애/차단이므로 서버 내부 오류(5xx)가 아니라 게이트웨이 오류로 구분합니다.
+        logger.warn("Flight search error: ${ex.message}")
+        return ResponseEntity
+            .status(HttpStatus.BAD_GATEWAY)
+            .body(ApiResponse.error(ex.message ?: "Flight search failed"))
     }
 
     @ExceptionHandler(IllegalArgumentException::class)

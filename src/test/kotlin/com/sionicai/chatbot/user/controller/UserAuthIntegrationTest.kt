@@ -7,6 +7,8 @@ import com.sionicai.chatbot.chat.repository.ThreadRepository
 import com.sionicai.chatbot.feedback.repository.FeedbackRepository
 import com.sionicai.chatbot.user.dto.LoginRequest
 import com.sionicai.chatbot.user.dto.SignUpRequest
+import com.sionicai.chatbot.flight.repository.FlightWatchRepository
+import com.sionicai.chatbot.flight.repository.PriceSnapshotRepository
 import com.sionicai.chatbot.user.repository.UserRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -45,12 +47,20 @@ class UserAuthIntegrationTest {
     @Autowired
     private lateinit var loginLogRepository: LoginLogRepository
 
+    @Autowired
+    private lateinit var flightWatchRepository: FlightWatchRepository
+
+    @Autowired
+    private lateinit var priceSnapshotRepository: PriceSnapshotRepository
+
     @BeforeEach
     fun setUp() {
         feedbackRepository.deleteAll()
         loginLogRepository.deleteAll()
         chatRepository.deleteAll()
         threadRepository.deleteAll()
+        priceSnapshotRepository.deleteAll()
+        flightWatchRepository.deleteAll()
         userRepository.deleteAll()
     }
 

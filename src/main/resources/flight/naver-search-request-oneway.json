@@ -1,0 +1,32 @@
+{
+  "_comment": [
+    "네이버 항공권 편도 검색 요청 본문 템플릿입니다.",
+    "네이버는 이 API를 문서화하지 않으므로 아래 필드명은 확정값이 아닙니다.",
+    "실제로 붙이기 전에 브라우저 DevTools > Network 에서 flight.naver.com 의 searchFlights",
+    "요청 본문(Payload)을 복사해 이 파일을 통째로 교체하고, 가변값만 플레이스홀더로 바꾸세요.",
+    "재컴파일 없이 반영됩니다. _comment 키는 무시되어도 무방하지만, 네이버가 알 수 없는 키를",
+    "거부한다면 지우면 됩니다.",
+    "",
+    "사용 가능한 플레이스홀더:",
+    "  {{origin}}            출발 공항 IATA 코드 (예: ICN)",
+    "  {{destination}}       도착 공항 IATA 코드 (예: NRT)",
+    "  {{departureDate}}     출발일 yyyyMMdd  (예: 20261220)",
+    "  {{departureDateDash}} 출발일 yyyy-MM-dd (예: 2026-12-20)",
+    "  {{adults}}            성인 인원수 (숫자, 따옴표 없이 사용 가능)",
+    "  {{cabin}}             좌석 등급 코드 (Y=일반, C=비즈니스, F=일등석)",
+    "  {{tripType}}          OW(편도) / RT(왕복)"
+  ],
+  "fly": [
+    {
+      "departureAirport": "{{origin}}",
+      "arrivalAirport": "{{destination}}",
+      "departureDate": "{{departureDate}}"
+    }
+  ],
+  "tripType": "{{tripType}}",
+  "adult": {{adults}},
+  "child": 0,
+  "infant": 0,
+  "fareType": "{{cabin}}",
+  "isDirect": false
+}

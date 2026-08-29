@@ -9,6 +9,8 @@ import com.sionicai.chatbot.common.client.AiClient
 import com.sionicai.chatbot.common.security.JwtUtil
 import com.sionicai.chatbot.user.entity.User
 import com.sionicai.chatbot.user.entity.UserRole
+import com.sionicai.chatbot.flight.repository.FlightWatchRepository
+import com.sionicai.chatbot.flight.repository.PriceSnapshotRepository
 import com.sionicai.chatbot.user.repository.UserRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -58,10 +60,18 @@ class ChatIntegrationTest {
     private lateinit var otherMemberToken: String
     private lateinit var adminToken: String
 
+    @Autowired
+    private lateinit var flightWatchRepository: FlightWatchRepository
+
+    @Autowired
+    private lateinit var priceSnapshotRepository: PriceSnapshotRepository
+
     @BeforeEach
     fun setUp() {
         chatRepository.deleteAll()
         threadRepository.deleteAll()
+        priceSnapshotRepository.deleteAll()
+        flightWatchRepository.deleteAll()
         userRepository.deleteAll()
 
         val member = userRepository.save(
