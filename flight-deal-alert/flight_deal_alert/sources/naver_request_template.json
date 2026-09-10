@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "네이버 항공권 내부 검색 API 요청 본문 템플릿. 이 API 는 문서화되어 있지 않아 아래 필드명은 확정값이 아닙니다.",
+    "브라우저에서 flight.naver.com 검색 후 DevTools > Network 의 searchFlights 요청 Payload 를 복사해",
+    "이 파일을 통째로 교체하고 가변값만 플레이스홀더로 바꾸세요. '_' 로 시작하는 키는 전송 전에 제거됩니다.",
+    "플레이스홀더: {{origin}} {{destination}} {{departureDate}}(yyyyMMdd) {{departureDateDash}}(yyyy-MM-dd)",
+    "              {{returnDate}} {{returnDateDash}} {{adults}} {{cabin}}(Y/C/F) {{tripType}}(OW/RT)"
+  ],
+  "fly": [
+    { "departureAirport": "{{origin}}", "arrivalAirport": "{{destination}}", "departureDate": "{{departureDate}}" }
+  ],
+  "_return_leg": { "departureAirport": "{{destination}}", "arrivalAirport": "{{origin}}", "departureDate": "{{returnDate}}" },
+  "tripType": "{{tripType}}",
+  "adult": {{adults}},
+  "child": 0,
+  "infant": 0,
+  "fareType": "{{cabin}}",
+  "isDirect": false
+}

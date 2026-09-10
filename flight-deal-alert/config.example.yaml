@@ -1,0 +1,110 @@
+# 복사해서 config.yaml 로 저장하고 본인 상황에 맞게 고치세요.
+# 시크릿(토큰 등)은 여기가 아니라 .env 에 둡니다.
+
+default_origin: ICN
+
+# 관심 노선. budget_krw 가 "절대 기준" 입니다 — 이 값 이하면 무조건 알림 후보.
+routes:
+  - origin: ICN
+    destination: NRT
+    budget_krw: 250000
+    depart_from: 2026-11-01
+    depart_to: 2027-02-28
+    stay_days: [3, 7]        # 왕복 체류일 범위. 비우면 편도로 검색
+    adults: 1
+    cabin: economy
+  - origin: ICN
+    destination: BKK
+    budget_krw: 350000
+    depart_from: 2026-11-01
+    depart_to: 2027-02-28
+    stay_days: [4, 7]
+  - origin: ICN
+    destination: CDG
+    budget_krw: 900000
+    depart_from: 2026-11-01
+    depart_to: 2027-02-28
+    stay_days: [7, 14]
+
+# 땡처리/공동구매 목록은 "도쿄" 처럼 도시명으로만 나오므로, 공항코드로 매핑할 별칭이 필요합니다.
+destination_aliases:
+  NRT: [도쿄, 나리타, 하네다, 東京, Tokyo]
+  BKK: [방콕, Bangkok]
+  CDG: [파리, Paris]
+
+detection:
+  relative_window_days: 30       # 상대 기준 창
+  relative_discount_pct: 20      # 창 내 중앙값 대비 이만큼 싸면 특가
+  relative_min_observations: 10  # 관측이 이보다 적으면 상대 기준을 아예 적용하지 않음 (기준선 없는 "싸다" 금지)
+  drop_pct: 15                   # 같은 항목이 직전 대비 이만큼 떨어지면 급락
+  deal_tags: [땡처리, 공동구매, 특가, 얼리버드]
+  imminent_days: 14              # 출발이 이 안이면 땡처리 긴급도 가산
+  max_alerts_per_route_per_day: 5
+  quiet_hours: [0, 7]            # 이 시간대엔 모아뒀다 아침 요약으로. [start, end) 시
+  quiet_bypass_urgency: 90       # 이 이상이면 조용한 시간에도 즉시
+
+notify:
+  channel: stdout                # stdout | telegram
+  daily_summary_hour: 8          # 요약 리포트 시각 (로컬)
+  timezone: Asia/Seoul
+
+storage:
+  sqlite_path: data/flight_deals.db
+
+# 소스별 설정. 켜고 끄는 것도, 사이트가 바뀌었을 때 고치는 것도 전부 여기서 합니다.
+sources:
+  mock:
+    enabled: true                # 외부 호출 없이 전체 파이프라인을 돌려보는 용도
+    interval_minutes: 30
+
+  travelpayouts:                 # ✅ 공식 API (캐시 가격). TRAVELPAYOUTS_TOKEN 필요
+    enabled: false
+    interval_minutes: 720
+    base_url: https://api.travelpayouts.com
+    request_delay_sec: 1.0
+
+  modetour:                      # ⚠️ 목록 페이지 HTML 파싱. 선택자는 실제 페이지에서 확인 필요 (검증 안 됨)
+    enabled: false
+    type: html_list
+    interval_minutes: 30
+    url: https://www.modetour.com/flights/group-buy     # 실제 URL 로 교체하세요
+    tags: [공동구매]
+    item_selector: "ul.list > li"
+    fields:
+      title: {selector: ".title"}
+      price: {selector: ".price", regex: "[0-9,]+"}
+      url:   {selector: "a", attr: "href"}
+      depart: {selector: ".date", regex: "\\d{4}[-.]\\d{2}[-.]\\d{2}"}
+    request_delay_sec: 2.0
+
+  ddaeng:                        # ⚠️ 땡처리 목록 페이지. 동일하게 검증 안 됨
+    enabled: false
+    type: html_list
+    interval_minutes: 30
+    url: https://www.ttang.com/air/list                  # 실제 URL 로 교체하세요
+    tags: [땡처리]
+    item_selector: "table.list tbody tr"
+    fields:
+      title: {selector: "td.subject"}
+      price: {selector: "td.price", regex: "[0-9,]+"}
+      url:   {selector: "a", attr: "href"}
+      depart: {selector: "td.date", regex: "\\d{4}[-.]\\d{2}[-.]\\d{2}"}
+    request_delay_sec: 2.0
+
+  naver:                         # ⚠️ 비공식 내부 API. 클라우드 IP 차단. 요청 본문은 템플릿 파일에서 교체
+    enabled: false
+    interval_minutes: 720
+    base_url: https://flight-api.naver.com
+    search_path: /flight/international/searchFlights
+    referer: https://flight.naver.com/
+    request_template: flight_deal_alert/sources/naver_request_template.json
+    price_keys: [totalFare, totalPrice, adultFare, lowestFare, fare, price, amount]
+    airline_keys: [airlineName, airline, carrierName, airlineCode, carrier]
+    stops_keys: [stopCount, stops, viaCount, transitCount]
+    link_keys: [deepLink, bookingUrl, link, url]
+    min_price: 10000
+    request_delay_sec: 5.0
+    timeout_sec: 30
+
+  skyscanner:                    # ❌ 파트너 API 키 없이는 동작 불가. 인터페이스 스텁만 존재
+    enabled: false

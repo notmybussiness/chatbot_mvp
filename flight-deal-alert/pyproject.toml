@@ -1,0 +1,26 @@
+[project]
+name = "flight-deal-alert"
+version = "0.1.0"
+description = "여러 소스에서 항공권 가격을 모아 내 기준보다 싸게 나온 것만 골라 알림을 보내는 개인 도구"
+requires-python = ">=3.11"
+dependencies = [
+  "requests>=2.31",
+  "pyyaml>=6.0",
+  "beautifulsoup4>=4.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+flight-deal-alert = "flight_deal_alert.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["flight_deal_alert*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
